@@ -28,6 +28,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -131,13 +132,14 @@ func (c *Client) call(method string, params []interface{}) ([]byte, error) {
 		return nil, rerr
 	}
 	defer resp.Body.Close()
-	if body, err := ioutil.ReadAll(resp.Body); err == nil {
+	body, berr := ioutil.ReadAll(resp.Body)
+	if berr == nil {
 		if len(body) > 90 {
 			return body, nil
 		}
 		return nil, fmt.Errorf("Response Code %d", resp.StatusCode)
 	}
-	return nil, err
+	return nil, berr
 }
 
 // CallRaw calling the remote yarrpc and return the raw byte yar response body
@@ -147,11 +149,13 @@ func (c *Client) CallRaw(method string, params ...interface{}) ([]byte, error) {
 
 // Call calling the remote yarrpc, print the output and set return value
 func (c *Client) Call(method string, ret interface{}, params ...interface{}) error {
-	if data, cerr := c.call(method, params); cerr == nil {
+	data, cerr := c.call(method, params)
+	if cerr == nil {
 		jdata := data[90:]
 		var resp Response
 		resp.Retval = ret
-		if jerr := json.Unmarshal(jdata, &resp); jerr == nil {
+		jerr := json.Unmarshal(jdata, &resp)
+		if jerr == nil {
 			fmt.Print(resp.Output)
 			if resp.Errmsg != "" {
 				return fmt.Errorf(resp.Errmsg)
