@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-
 /*
 	Package goyar provides a client with jsoncodec for calling the remote http yar rpc server.
 
@@ -37,9 +36,9 @@ import (
 
 // Client for yar rpc
 type Client struct {
-	http  *http.Client    // a http client
-	seq   uint32          // the rpc call id
-	url   string          // remote url
+	http  *http.Client // a http client
+	seq   uint32       // the rpc call id
+	url   string       // remote url
 	mutex sync.Mutex
 }
 
@@ -52,33 +51,6 @@ func NewClient(url string, client *http.Client) *Client {
 	c.http = client
 	c.url = url
 	return &c
-}
-
-// Header Yar transport Header(82 bytes)
-type Header struct {
-	id        uint32 // transaction id
-	version   uint16 // protocl version
-	magicnum uint32 // default is: 0x80DFEC60
-	reserved  uint32
-	provider  [32]byte // reqeust from who
-	token     [32]byte // request token, used for authentication
-	bodylen  uint32   // request body len
-}
-
-// Request yar request struct(only for json)
-type Request struct {
-	ID     uint32        `json:"i"` // yar rpc id
-	Method string        `json:"m"` // calling method name
-	Params []interface{} `json:"p"` // all the params
-}
-
-// Response yar response struct(only for json)
-type Response struct {
-	ID     uint32      `json:"i"` // yar rpc id
-	Status int32       `json:"s"` // return status code
-	Retval interface{} `json:"r"` // return value
-	Output string      `json:"o"` // the called function standard output
-	Errmsg string      `json:"e"` // return error message
 }
 
 // Pack a complete yar request body
@@ -96,18 +68,18 @@ func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader 
 
 	buf := bytes.NewBuffer(nil)
 	yh := Header{
-		id:        c.seq,
-		version:   0,
-		magicnum: 0x80DFEC60,
-		reserved:  0,
-		bodylen:  uint32(len(jbyte)),
+		Id:       c.seq,
+		Version:  0,
+		MagicNum: 0x80DFEC60,
+		Reserved: 0,
+		BodyLen:  uint32(len(jbyte)),
 	}
 
 	//binary.Write(buf, binary.LittleEndian, yh)
 	binary.Write(buf, binary.BigEndian, yh)
 
-	buf.WriteString("JSON")
-	buf.Write([]byte{0, 0, 0, 0})
+	pkg := Packager("JSON")
+	pkg.Write(buf)
 
 	buf.Write(jbyte)
 
