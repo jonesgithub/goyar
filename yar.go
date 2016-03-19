@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"github.com/neverlee/glog"
 )
 
 // Header Yar transport Header(82 bytes)
@@ -35,13 +36,12 @@ func ReadHeader(r io.Reader) (*Header, error) {
 	return &yh, nil
 }
 
-func (r *Request) Pack() io.Reader {
+func (r *Request) Write(w io.Writer) error {
 	jbyte, jerr := json.Marshal(*r)
 	if jerr != nil {
-		return nil
+		return jerr
 	}
 
-	buf := bytes.NewBuffer(nil)
 	yh := Header{
 		ID:       r.ID,
 		Version:  0,
@@ -50,15 +50,20 @@ func (r *Request) Pack() io.Reader {
 		BodyLen:  uint32(len(jbyte)),
 	}
 
-	//binary.Write(buf, binary.LittleEndian, yh)
-	binary.Write(buf, binary.BigEndian, yh)
+	if err := binary.Write(w, binary.BigEndian, yh); err != nil {
+		return err
+	}
 
 	pkg := Packager("JSON")
-	pkg.Write(buf)
+	if err := pkg.Write(w); err != nil {
+		return err
+	}
 
-	buf.Write(jbyte)
+	if _, err := w.Write(jbyte); err != nil {
+		return err
+	}
 
-	return buf
+	return nil
 }
 
 // Response yar response struct(only for json)
@@ -86,17 +91,21 @@ func (r *Response) Write(w io.Writer) error {
 	}
 
 	if err := binary.Write(w, binary.BigEndian, yh); err != nil {
-		fmt.Println("binary h w", err)
+		glog.Extraln("binary h w", err)
 		return err
 	}
-	fmt.Println("Write header end")
+	glog.Extraln("Write header end")
 
 	pkg := Packager("JSON")
-	pkg.Write(w)
+	if err := pkg.Write(w); err != nil {
+		return err
+	}
 	fmt.Println("Write pkg end")
 
-	n, e := w.Write(jbyte)
-	fmt.Println("Write last ", n, e)
+	if n, err := w.Write(jbyte); err != nil {
+		glog.Extraln("Write last ", n, err)
+		return err
+	}
 	return nil
 }
 
@@ -113,9 +122,10 @@ func (p Packager) Bytes() (ret [8]byte) {
 }
 
 // Write write the [8]byte of the Packager into
-func (p *Packager) Write(w io.Writer) {
+func (p *Packager) Write(w io.Writer) error {
 	b := p.Bytes()
-	w.Write(b[:])
+	_, err := w.Write(b[:])
+	return err
 }
 
 // Read read the [8]byte of the Packager into
