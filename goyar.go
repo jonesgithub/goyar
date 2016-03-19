@@ -72,7 +72,7 @@ func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader 
 		Version:  0,
 		MagicNum: 0x80DFEC60,
 		Reserved: 0,
-		BodyLen:  uint32(len(jbyte)),
+		BodyLen:  uint32(len(jbyte)+8),
 	}
 
 	//binary.Write(buf, binary.LittleEndian, yh)
