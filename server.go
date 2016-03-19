@@ -92,14 +92,19 @@ func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
 	}
 	glog.Extraln("pkg", pkg)
 
-	buf := make([]byte, yh.BodyLen)
-	if rn, rerr := c.r.Read(buf); rn != int(yh.BodyLen) {
-		fmt.Println("read", rn, rerr)
+	blen := yh.BodyLen - 8
+
+	buf := make([]byte, blen)
+	if rn, rerr := c.r.Read(buf); rn != int(blen) {
+		glog.Extraln("read", rn, rerr, string(buf))
 		return fmt.Errorf("Read request body length %d is not equal bodylen of header %d", rn, yh.BodyLen)
 	}
+	glog.Extraln("readBody", string(buf))
+	glog.Extraln("readBody", buf)
 
 	var req serverRequest
 	if jerr := json.Unmarshal(buf, &req); jerr != nil {
+		glog.Extraln(jerr)
 		return jerr
 	}
 	glog.Extraln("serverRequest", req)
