@@ -15,7 +15,7 @@
 		func main() {
 			client := goyar.NewClient("http://yarserver/yarphp.php", nil)
 			var r int
-			err := client.Call("add", &r, 3, 4)
+			err := client.MCall("add", &r, 3, 4)
 			fmt.Println(r)
 		}
 
@@ -32,6 +32,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"github.com/neverlee/glog"
 )
 
 // Client for yar rpc
@@ -42,8 +43,8 @@ type Client struct {
 	mutex sync.Mutex
 }
 
-// NewClient returns a new goyar.Client
-func NewClient(url string, client *http.Client) *Client {
+// NewHTTPClient returns a new goyar.Client
+func NewHTTPClient(url string, client *http.Client) *Client {
 	var c Client
 	if client == nil {
 		client = http.DefaultClient
@@ -68,7 +69,7 @@ func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader 
 
 	buf := bytes.NewBuffer(nil)
 	yh := Header{
-		Id:       c.seq,
+		ID:       c.seq,
 		Version:  0,
 		MagicNum: 0x80DFEC60,
 		Reserved: 0,
@@ -93,7 +94,7 @@ func (c *Client) raise() uint32 {
 	return c.seq
 }
 
-func (c *Client) call(method string, params []interface{}) ([]byte, error) {
+func (c *Client) mcall(method string, params []interface{}) ([]byte, error) {
 	dpack := c.Pack(c.raise(), method, params)
 
 	request, _ := http.NewRequest("POST", c.url, dpack)
@@ -105,6 +106,7 @@ func (c *Client) call(method string, params []interface{}) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	body, berr := ioutil.ReadAll(resp.Body)
+	glog.Extraln(body, berr)
 	if berr == nil {
 		if len(body) > 90 {
 			return body, nil
@@ -114,14 +116,34 @@ func (c *Client) call(method string, params []interface{}) ([]byte, error) {
 	return nil, berr
 }
 
-// CallRaw calling the remote yarrpc and return the raw byte yar response body
-func (c *Client) CallRaw(method string, params ...interface{}) ([]byte, error) {
-	return c.call(method, params)
+// MCallRaw calling the remote yarrpc and return the raw byte yar response body
+func (c *Client) MCallRaw(method string, params ...interface{}) ([]byte, error) {
+	return c.mcall(method, params)
+}
+
+// MCall calling the remote yarrpc, print the output and set return value
+func (c *Client) MCall(method string, ret interface{}, params ...interface{}) error {
+	data, cerr := c.mcall(method, params)
+	if cerr == nil {
+		jdata := data[90:]
+		var resp Response
+		resp.Retval = ret
+		jerr := json.Unmarshal(jdata, &resp)
+		if jerr == nil {
+			fmt.Print(resp.Output)
+			if resp.Errmsg != "" {
+				return fmt.Errorf(resp.Errmsg)
+			}
+			return nil
+		}
+		return jerr
+	}
+	return cerr
 }
 
 // Call calling the remote yarrpc, print the output and set return value
-func (c *Client) Call(method string, ret interface{}, params ...interface{}) error {
-	data, cerr := c.call(method, params)
+func (c *Client) Call(method string, param interface{}, ret interface{}) error {
+	data, cerr := c.mcall(method, []interface{}{param})
 	if cerr == nil {
 		jdata := data[90:]
 		var resp Response
