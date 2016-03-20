@@ -20,6 +20,13 @@ type clientCodec struct {
 	c   io.Closer
 
 	response clientResponse
+
+	// YAR-RPC responses include the request id but not the request method.
+	// Package rpc expects both.
+	// We save the request method in pending when sending a request
+	// and then look it up by request ID when filling out the rpc Response.
+	mutex   sync.Mutex        // protects pending
+	pending map[uint32]string // map request id to method name
 }
 
 // NewClientCodec returns a new rpc.ClientCodec using JSON-RPC on conn.
@@ -33,6 +40,10 @@ func NewClientCodec(conn io.ReadWriteCloser) rpc.ClientCodec {
 }
 
 func (c *clientCodec) WriteRequest(r *rpc.Request, param interface{}) error {
+	c.mutex.Lock()
+	c.pending[uint32(r.Seq)] = r.ServiceMethod
+	c.mutex.Unlock()
+
 	req := Request{
 		ID:     uint32(r.Seq),
 		Method: r.ServiceMethod,
@@ -66,6 +77,11 @@ func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
 	if yerr != nil {
 		return yerr
 	}
+
+	c.mutex.Lock()
+	r.ServiceMethod = c.pending[yh.ID]
+	delete(c.pending, yh.ID)
+	c.mutex.Unlock()
 
 	glog.Extraln("pkgname", yh.PkgName)
 	if !yh.PkgName.Equal("JSON") {
@@ -112,7 +128,7 @@ func (c *clientCodec) Close() error {
 
 // NewClient returns a new rpc.Client to handle requests to the
 // set of services at the other end of the connection.
-func NewTCPClient(conn io.ReadWriteCloser) *rpc.Client {
+func NewClient(conn io.ReadWriteCloser) *rpc.Client {
 	return rpc.NewClientWithCodec(NewClientCodec(conn))
 }
 
@@ -122,5 +138,5 @@ func Dial(network, address string) (*rpc.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewTCPClient(conn), err
+	return NewClient(conn), err
 }
