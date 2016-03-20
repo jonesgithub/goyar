@@ -1,162 +1,132 @@
-// Copyright 2016 Never Lee. All rights reserved.
+// Copyright 2010 The Go Authors.  All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-/*
-	Package goyar provides a client with jsoncodec for calling the remote http yar rpc server.
-
-	Here is a simple example.
-
-		import (
-			"fmt"
-			"github.com/neverlee/goyar"
-		)
-
-		func main() {
-			client := goyar.NewClient("http://yarserver/yarphp.php", nil)
-			var r int
-			err := client.MCall("add", &r, 3, 4)
-			fmt.Println(r)
-		}
-
-*/
-
+// Package jsonrpc implements a JSON-RPC ClientCodec and ServerCodec
+// for the rpc package.
 package goyar
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/neverlee/glog"
 	"io"
-	"io/ioutil"
-	"net/http"
+	"net"
+	"net/rpc"
 	"sync"
 )
 
-// Client for yar rpc
-type Client struct {
-	http  *http.Client // a http client
-	seq   uint32       // the rpc call id
-	url   string       // remote url
-	mutex sync.Mutex
+type clientCodec struct {
+	rwc io.ReadWriteCloser
+	r   io.Reader
+	w   io.Writer
+	c   io.Closer
+
+	response clientResponse
 }
 
-// NewHTTPClient returns a new goyar.Client
-func NewHTTPClient(url string, client *http.Client) *Client {
-	var c Client
-	if client == nil {
-		client = http.DefaultClient
+// NewClientCodec returns a new rpc.ClientCodec using JSON-RPC on conn.
+func NewClientCodec(conn io.ReadWriteCloser) rpc.ClientCodec {
+	return &clientCodec{
+		rwc: conn,
+		r:   conn,
+		w:   conn,
+		c:   conn,
 	}
-	c.http = client
-	c.url = url
-	return &c
 }
 
-// Pack a complete yar request body
-func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader {
-	dobj := Request{
-		ID:     id,
-		Method: method,
-		Params: params,
+func (c *clientCodec) WriteRequest(r *rpc.Request, param interface{}) error {
+	req := Request{
+		ID:     uint32(r.Seq),
+		Method: r.ServiceMethod,
+		Params: []interface{}{param},
 	}
 
-	jbyte, jerr := json.Marshal(dobj)
-	if jerr != nil {
+	return req.Write(c.w)
+}
+
+// Response yar response struct(only for json)
+type clientResponse struct {
+	ID     uint32           `json:"i"` // yar rpc id
+	Status int32            `json:"s"` // return status code
+	Result *json.RawMessage `json:"r"` // return value raw data
+	Output string           `json:"o"` // the called function standard output
+	Error  string           `json:"e"` // return error message
+}
+
+func (r *clientResponse) reset() {
+	r.ID = 0
+	r.Result = nil
+	r.Error = ""
+}
+
+func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
+	c.response.reset()
+
+	yh, yerr := ReadHeader(c.r)
+	glog.Extraln("ReadRequestHeader")
+	glog.Extraln(yh, yerr)
+	if yerr != nil {
+		return yerr
+	}
+
+	var pkg Packager
+	pkg.Read(c.r)
+	if pkg != "JSON" {
+		return errUnsupportedEncoding
+	}
+	glog.Extraln("pkg", pkg)
+
+	blen := yh.BodyLen - 8
+
+	buf := make([]byte, blen)
+	if rn, rerr := c.r.Read(buf); rn != int(blen) {
+		glog.Extraln("read", rn, rerr, string(buf))
+		return fmt.Errorf("Read request body length %d is not equal bodylen of header %d", rn, yh.BodyLen)
+	}
+	glog.Extraln("readBody", string(buf))
+	glog.Extraln("readBody", buf)
+
+	resp := &c.response
+	if jerr := json.Unmarshal(buf, resp); jerr != nil {
+		glog.Extraln(jerr)
+		return jerr
+	}
+	glog.Extraln("serverRequest", resp)
+
+	r.Error = ""
+	r.Seq = uint64(resp.ID)
+	//r.ServiceMethod("")
+
+	return nil
+}
+
+func (c *clientCodec) ReadResponseBody(x interface{}) error {
+	if x == nil {
 		return nil
 	}
-
-	buf := bytes.NewBuffer(nil)
-	yh := Header{
-		ID:       c.seq,
-		Version:  0,
-		MagicNum: 0x80DFEC60,
-		Reserved: 0,
-		BodyLen:  uint32(len(jbyte) + 8),
+	if c.response.Result != nil {
+		return json.Unmarshal(*c.response.Result, x)
 	}
-
-	//binary.Write(buf, binary.LittleEndian, yh)
-	binary.Write(buf, binary.BigEndian, yh)
-
-	pkg := Packager("JSON")
-	pkg.Write(buf)
-
-	buf.Write(jbyte)
-
-	return buf
+	return nil
 }
 
-func (c *Client) raise() uint32 {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.seq++
-	return c.seq
+func (c *clientCodec) Close() error {
+	return c.c.Close()
 }
 
-func (c *Client) mcall(method string, params []interface{}) ([]byte, error) {
-	dpack := c.Pack(c.raise(), method, params)
-
-	request, _ := http.NewRequest("POST", c.url, dpack)
-	request.Header.Set("Connection", "close")
-	request.Header.Set("Content-Type", "application/octet-stream")
-	resp, rerr := c.http.Do(request)
-	if rerr != nil {
-		return nil, rerr
-	}
-	defer resp.Body.Close()
-	body, berr := ioutil.ReadAll(resp.Body)
-	glog.Extraln(body, berr)
-	if berr == nil {
-		if len(body) > 90 {
-			return body, nil
-		}
-		return nil, fmt.Errorf("Response Code %d", resp.StatusCode)
-	}
-	return nil, berr
+// NewClient returns a new rpc.Client to handle requests to the
+// set of services at the other end of the connection.
+func NewTCPClient(conn io.ReadWriteCloser) *rpc.Client {
+	return rpc.NewClientWithCodec(NewClientCodec(conn))
 }
 
-// MCallRaw calling the remote yarrpc and return the raw byte yar response body
-func (c *Client) MCallRaw(method string, params ...interface{}) ([]byte, error) {
-	return c.mcall(method, params)
-}
-
-// MCall calling the remote yarrpc, print the output and set return value
-func (c *Client) MCall(method string, ret interface{}, params ...interface{}) error {
-	data, cerr := c.mcall(method, params)
-	if cerr == nil {
-		jdata := data[90:]
-		var resp Response
-		resp.Result = ret
-		jerr := json.Unmarshal(jdata, &resp)
-		if jerr == nil {
-			fmt.Print(resp.Output)
-			if resp.Error != "" {
-				return fmt.Errorf(resp.Error)
-			}
-			return nil
-		}
-		return jerr
+// Dial connects to a JSON-RPC server at the specified network address.
+func Dial(network, address string) (*rpc.Client, error) {
+	conn, err := net.Dial(network, address)
+	if err != nil {
+		return nil, err
 	}
-	return cerr
-}
-
-// Call calling the remote yarrpc, print the output and set return value
-func (c *Client) Call(method string, param interface{}, ret interface{}) error {
-	data, cerr := c.mcall(method, []interface{}{param})
-	if cerr == nil {
-		jdata := data[90:]
-		var resp Response
-		resp.Result = ret
-		jerr := json.Unmarshal(jdata, &resp)
-		if jerr == nil {
-			fmt.Print(resp.Output)
-			if resp.Error != "" {
-				return fmt.Errorf(resp.Error)
-			}
-			return nil
-		}
-		return jerr
-	}
-	return cerr
+	return NewTCPClient(conn), err
 }
