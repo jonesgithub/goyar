@@ -28,11 +28,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/neverlee/glog"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"sync"
-	"github.com/neverlee/glog"
 )
 
 // Client for yar rpc
@@ -73,7 +73,7 @@ func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader 
 		Version:  0,
 		MagicNum: 0x80DFEC60,
 		Reserved: 0,
-		BodyLen:  uint32(len(jbyte)),
+		BodyLen:  uint32(len(jbyte) + 8),
 	}
 
 	//binary.Write(buf, binary.LittleEndian, yh)
@@ -127,12 +127,12 @@ func (c *Client) MCall(method string, ret interface{}, params ...interface{}) er
 	if cerr == nil {
 		jdata := data[90:]
 		var resp Response
-		resp.Retval = ret
+		resp.Result = ret
 		jerr := json.Unmarshal(jdata, &resp)
 		if jerr == nil {
 			fmt.Print(resp.Output)
-			if resp.Errmsg != "" {
-				return fmt.Errorf(resp.Errmsg)
+			if resp.Error != "" {
+				return fmt.Errorf(resp.Error)
 			}
 			return nil
 		}
@@ -147,12 +147,12 @@ func (c *Client) Call(method string, param interface{}, ret interface{}) error {
 	if cerr == nil {
 		jdata := data[90:]
 		var resp Response
-		resp.Retval = ret
+		resp.Result = ret
 		jerr := json.Unmarshal(jdata, &resp)
 		if jerr == nil {
 			fmt.Print(resp.Output)
-			if resp.Errmsg != "" {
-				return fmt.Errorf(resp.Errmsg)
+			if resp.Error != "" {
+				return fmt.Errorf(resp.Error)
 			}
 			return nil
 		}

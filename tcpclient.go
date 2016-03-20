@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/neverlee/glog"
 	"io"
 	"net"
 	"net/rpc"
@@ -17,79 +18,102 @@ import (
 )
 
 type clientCodec struct {
-	//rwc io.ReadWriteCloser
-	rc io.ReadCloser
-	wc io.WriteCloser
+	rwc io.ReadWriteCloser
+	r   io.Reader
+	w   io.Writer
+	c   io.Closer
 
-	// temporary work space
-	header   Header
-	packager Packager
-	request  Request
-	response Response
+	response clientResponse
 }
 
 // NewClientCodec returns a new rpc.ClientCodec using JSON-RPC on conn.
 func NewClientCodec(conn io.ReadWriteCloser) rpc.ClientCodec {
 	return &clientCodec{
-		rc: conn,
-		wc: conn,
+		rwc: conn,
+		r:   conn,
+		w:   conn,
+		c:   conn,
 	}
 }
 
 func (c *clientCodec) WriteRequest(r *rpc.Request, param interface{}) error {
-	//c.req.Method = r.ServiceMethod
-	//c.req.Params[0] = param
-	//c.req.Id = r.Seq
-	//br := PackRequest(uint32(r.Seq), r.ServiceMethod, []interface{}{param})
-	//_, err := io.Copy(c.wc, br)
-	return nil
-}
-
-//func (r *clientResponse) reset() {
-//	r.Id = 0
-//	r.Result = nil
-//	r.Error = nil
-//}
-
-func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
-	if err := binary.Read(c.rc, binary.BigEndian, &c.header); err != nil {
-		return err
+	req := Request{
+		ID:     uint32(r.Seq),
+		Method: r.ServiceMethod,
+		Params: []interface{}{param},
 	}
 
+	return req.Write(c.w)
+}
+
+// Response yar response struct(only for json)
+type clientResponse struct {
+	ID     uint32           `json:"i"` // yar rpc id
+	Status int32            `json:"s"` // return status code
+	Result *json.RawMessage `json:"r"` // return value raw data
+	Output string           `json:"o"` // the called function standard output
+	Error  string           `json:"e"` // return error message
+}
+
+func (r *clientResponse) reset() {
+	r.ID = 0
+	r.Result = nil
 	r.Error = ""
-	r.Seq = uint64(c.header.ID)
+}
+
+func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
+	c.response.reset()
+
+	yh, yerr := ReadHeader(c.r)
+	glog.Extraln("ReadRequestHeader")
+	glog.Extraln(yh, yerr)
+	if yerr != nil {
+		return yerr
+	}
+
+	var pkg Packager
+	pkg.Read(c.r)
+	if pkg != "JSON" {
+		return errUnsupportedEncoding
+	}
+	glog.Extraln("pkg", pkg)
+
+	blen := yh.BodyLen - 8
+
+	buf := make([]byte, blen)
+	if rn, rerr := c.r.Read(buf); rn != int(blen) {
+		glog.Extraln("read", rn, rerr, string(buf))
+		return fmt.Errorf("Read request body length %d is not equal bodylen of header %d", rn, yh.BodyLen)
+	}
+	glog.Extraln("readBody", string(buf))
+	glog.Extraln("readBody", buf)
+
+	resp := &c.response
+	if jerr := json.Unmarshal(buf, resp); jerr != nil {
+		glog.Extraln(jerr)
+		return jerr
+	}
+	glog.Extraln("serverRequest", resp)
+
+	r.Error = ""
+	r.Seq = uint64(resp.ID)
+	//r.ServiceMethod("")
+
 	return nil
 }
 
 func (c *clientCodec) ReadResponseBody(x interface{}) error {
-	var pkg Packager
-	if err := pkg.Read(c.rc); err != nil {
-		return err
-	}
-
-	if pkg != "JSON" {
-		return fmt.Errorf("unsupported encode type: %s", pkg)
-	}
-
 	if x == nil {
 		return nil
 	}
-
-	c.response.Retval = x
-	buf := make([]byte, c.header.BodyLen)
-	n, err := c.rc.Read(buf)
-	if err != nil {
-		return err
+	if c.response.Result != nil {
+		return json.Unmarshal(*c.response.Result, x)
 	}
-	if n != int(c.header.BodyLen) {
-		return fmt.Errorf("Read response body length %d is not equal bodylen of header %d", n, c.header.BodyLen)
-	}
-	return json.Unmarshal(buf, &c.response)
+	return nil
 }
 
 func (c *clientCodec) Close() error {
-	//return c.rc.Close()
-	return nil
+	return c.c.Close()
 }
 
 // NewClient returns a new rpc.Client to handle requests to the

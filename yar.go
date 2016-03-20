@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"github.com/neverlee/glog"
+	"io"
 )
+
+var errMissingParams = errors.New("yarrpc: request body missing params")
+var errUnsupportedEncoding = errors.New("yarrpc: request body with unsupportedEncoding")
 
 // Header Yar transport Header(82 bytes)
 type Header struct {
@@ -47,7 +50,7 @@ func (r *Request) Write(w io.Writer) error {
 		Version:  0,
 		MagicNum: 0x80DFEC60,
 		Reserved: 0,
-		BodyLen:  uint32(len(jbyte)),
+		BodyLen:  uint32(len(jbyte) + 8),
 	}
 
 	if err := binary.Write(w, binary.BigEndian, yh); err != nil {
@@ -70,9 +73,9 @@ func (r *Request) Write(w io.Writer) error {
 type Response struct {
 	ID     uint32      `json:"i"` // yar rpc id
 	Status int32       `json:"s"` // return status code
-	Retval interface{} `json:"r"` // return value
+	Result interface{} `json:"r"` // return value
 	Output string      `json:"o"` // the called function standard output
-	Errmsg string      `json:"e"` // return error message
+	Error  string      `json:"e"` // return error message
 }
 
 func (r *Response) Write(w io.Writer) error {
@@ -87,7 +90,7 @@ func (r *Response) Write(w io.Writer) error {
 		Version:  0,
 		MagicNum: 0x80DFEC60,
 		Reserved: 0,
-		BodyLen:  uint32(len(jbyte)),
+		BodyLen:  uint32(len(jbyte) + 8),
 	}
 
 	if err := binary.Write(w, binary.BigEndian, yh); err != nil {
@@ -151,7 +154,6 @@ type Yar struct {
 	Request  Request
 	Response Response
 }
-
 
 func Pack(yar *Yar) ([]byte, error) {
 	jsonData, err := json.Marshal(&yar.Response)

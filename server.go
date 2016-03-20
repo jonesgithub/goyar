@@ -7,17 +7,14 @@ package goyar
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/neverlee/glog"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/rpc"
 	"sync"
-	"fmt"
-	"github.com/neverlee/glog"
 )
-
-var errMissingParams = errors.New("yarrpc: request body missing params")
-var errUnsupportedEncoding = errors.New("yarrpc: request body with unsupportedEncoding")
 
 const (
 	YARPREFIX = "yar"
@@ -29,7 +26,7 @@ type serverCodec struct {
 	//rwc     io.ReadWriteCloser
 	prefix string
 
-	rwc     io.ReadWriteCloser
+	rwc io.ReadWriteCloser
 	//rw      http.ResponseWriter
 	//req *http.Request
 
@@ -49,9 +46,9 @@ func NewServerCodec(conn io.ReadWriteCloser) rpc.ServerCodec {
 func NewNameServerCodec(name string, conn io.ReadWriteCloser) rpc.ServerCodec {
 	return &serverCodec{
 		prefix: name,
-		c: conn,
-		r: conn,
-		w: conn,
+		c:      conn,
+		r:      conn,
+		w:      conn,
 	}
 }
 
@@ -64,10 +61,10 @@ func NewHTTPServerCodec(conn io.ReadWriteCloser, w http.ResponseWriter, req *htt
 func NewHTTPNameServerCodec(name string, conn io.ReadWriteCloser, w http.ResponseWriter, req *http.Request) rpc.ServerCodec {
 	return &serverCodec{
 		prefix: name,
-		rwc:     conn,
-		c: req.Body,
-		r: req.Body,
-		w: conn,
+		rwc:    conn,
+		c:      req.Body,
+		r:      req.Body,
+		w:      conn,
 	}
 }
 
@@ -142,9 +139,9 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 
 	resp.ID = uint32(r.Seq)
 	if r.Error == "" {
-		resp.Retval = x
+		resp.Result = x
 	} else {
-		resp.Errmsg = r.Error
+		resp.Error = r.Error
 	}
 	bb, _ := json.Marshal(resp)
 
@@ -173,7 +170,6 @@ func (y *YarRpcServer) Register(rcvr interface{}) {
 	y.Server.RegisterName(YARPREFIX, rcvr)
 }
 
-
 func NewYarRpcServer() *YarRpcServer {
 	return &YarRpcServer{rpc.NewServer()}
 }
@@ -185,7 +181,7 @@ func (s *YarRpcServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	io.WriteString(conn, "HTTP/1.0 200 OK\n\n")
-	
+
 	codec := NewHTTPServerCodec(conn, w, req)
 	s.Server.ServeCodec(codec)
 }
