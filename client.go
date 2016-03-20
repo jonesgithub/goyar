@@ -93,7 +93,7 @@ func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
 		glog.Extraln(jerr)
 		return jerr
 	}
-	glog.Extraln("serverRequest", resp)
+	glog.Extraln("clientResponse", resp)
 
 	r.Error = ""
 	r.Seq = uint64(resp.ID)

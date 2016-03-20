@@ -11,6 +11,7 @@ import (
 	"github.com/neverlee/glog"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/rpc"
 	"sync"
@@ -21,19 +22,15 @@ const (
 )
 
 type serverCodec struct {
-	//c   io.Closer
-	//req serverRequest
-	//rwc     io.ReadWriteCloser
 	prefix string
 
-	rwc io.ReadWriteCloser
+	//req   *http.Request
 	//rw      http.ResponseWriter
-	//req *http.Request
 
+	rwc io.ReadWriteCloser
 	c io.Closer
 	r io.Reader
 	w io.Writer
-	//header *Header
 	request *serverRequest
 }
 
@@ -97,7 +94,6 @@ func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
 		return fmt.Errorf("Read request body length %d is not equal bodylen of header %d", rn, yh.BodyLen)
 	}
 	glog.Extraln("readBody", string(buf))
-	glog.Extraln("readBody", buf)
 
 	var req serverRequest
 	if jerr := json.Unmarshal(buf, &req); jerr != nil {
@@ -109,7 +105,6 @@ func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
 	r.ServiceMethod = c.prefix + "." + req.Method
 	r.Seq = uint64(req.ID)
 	c.request = &req
-	//c.header = yh
 
 	return nil
 }
@@ -146,20 +141,15 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 	bb, _ := json.Marshal(resp)
 
 	resp.Write(c.w)
-	c.rwc.Close()
+	if c.rwc != nil {
+		c.rwc.Close()
+	}
 	return nil
 }
 
 func (c *serverCodec) Close() error {
 	glog.Extraln("----------Close")
 	return c.c.Close()
-}
-
-// ServeConn runs the YAR-RPC server on a single connection.
-// ServeConn blocks, serving the connection until the client hangs up.
-// The caller typically invokes ServeConn in a go statement.
-func ServeConn(conn io.ReadWriteCloser) {
-	rpc.ServeCodec(NewServerCodec(conn))
 }
 
 type YarRpcServer struct {
@@ -174,10 +164,18 @@ func NewYarRpcServer() *YarRpcServer {
 	return &YarRpcServer{rpc.NewServer()}
 }
 
+func (s *YarRpcServer) ServeConn(conn io.ReadWriteCloser) {
+	s.Server.ServeCodec(NewServerCodec(conn))
+}
+
+func (s *YarRpcServer) HandleHTTP(rpcPath string) {
+	http.Handle(rpcPath, s)
+}
+
 func (s *YarRpcServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
-		//log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
+		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
 		return
 	}
 	io.WriteString(conn, "HTTP/1.0 200 OK\n\n")
