@@ -22,6 +22,7 @@ type Header struct {
 	Provider [32]byte // reqeust from who
 	Token    [32]byte // request token, used for authentication
 	BodyLen  uint32   // request body len
+	PkgName  Packager // body encode name
 }
 
 // Request yar request struct(only for json)
@@ -52,13 +53,9 @@ func (r *Request) Write(w io.Writer) error {
 		Reserved: 0,
 		BodyLen:  uint32(len(jbyte) + 8),
 	}
+	yh.PkgName.Set("JSON")
 
 	if err := binary.Write(w, binary.BigEndian, yh); err != nil {
-		return err
-	}
-
-	pkg := Packager("JSON")
-	if err := pkg.Write(w); err != nil {
 		return err
 	}
 
@@ -92,18 +89,13 @@ func (r *Response) Write(w io.Writer) error {
 		Reserved: 0,
 		BodyLen:  uint32(len(jbyte) + 8),
 	}
+	yh.PkgName.Set("JSON")
 
 	if err := binary.Write(w, binary.BigEndian, yh); err != nil {
 		glog.Extraln("binary h w", err)
 		return err
 	}
 	glog.Extraln("Write header end")
-
-	pkg := Packager("JSON")
-	if err := pkg.Write(w); err != nil {
-		return err
-	}
-	fmt.Println("Write pkg end")
 
 	if n, err := w.Write(jbyte); err != nil {
 		glog.Extraln("Write last ", n, err)
@@ -112,96 +104,26 @@ func (r *Response) Write(w io.Writer) error {
 	return nil
 }
 
+
 // Packager yar packager name
-type Packager string
+type Packager [8]byte
 
-// Bytes return the [8]byte of the Packager
-func (p Packager) Bytes() (ret [8]byte) {
-	i := 0
-	for ; i < 8 && i < len(p); i++ {
-		ret[i] = p[i]
+// Equal check it is equal the string
+func (p *Packager) Equal(str string) bool {
+	for i:=0; i<8 && i<len(str); i++ {
+		if (*p)[i] != str[i] {
+			return false
+		}
 	}
-	return
+	return true
 }
 
-// Write write the [8]byte of the Packager into
-func (p *Packager) Write(w io.Writer) error {
-	b := p.Bytes()
-	_, err := w.Write(b[:])
-	return err
-}
-
-// Read read the [8]byte of the Packager into
-func (p *Packager) Read(r io.Reader) error {
-	buf := make([]byte, 8)
-	n, err := r.Read(buf)
-	if err != nil {
-		return err
+func (p *Packager) Set(str string) {
+	var i int
+	for i=0; i<8 && i<len(str); i++ {
+		(*p)[i] = str[i]
 	}
-	if n != 8 {
-		return fmt.Errorf("Read packager info only %d", n)
+	for ; i<8; i++ {
+		(*p)[i] = 0
 	}
-
-	for n = 7; n >= 0 && buf[n] == 0; n-- {
-	}
-	*p = Packager(buf[0 : n+1])
-	return nil
-}
-
-type Yar struct {
-	Header   Header
-	Packager Packager
-	Request  Request
-	Response Response
-}
-
-func Pack(yar *Yar) ([]byte, error) {
-	jsonData, err := json.Marshal(&yar.Response)
-	if err != nil {
-		return nil, err
-	}
-	//fmt.Println("json:", string(jsonData))
-
-	jsonDataLen := len(jsonData)
-	dataLen := (82 + 8 + jsonDataLen)
-	data := make([]byte, dataLen)
-
-	bodyLen := jsonDataLen + 8
-	yar.Header.BodyLen = uint32(bodyLen)
-
-	//copy(data[0:4], Uint32ToBytes(yar.Header.Id))
-	//copy(data[4:6], Uint16ToBytes(yar.Header.Version))
-	//copy(data[6:10], Uint32ToBytes(yar.Header.MagicNum))
-	//copy(data[10:14], Uint32ToBytes(yar.Header.Reserved))
-	//copy(data[14:46], yar.Header.Provider[:32])
-	//copy(data[46:78], yar.Header.Token[:32])
-	//copy(data[78:82], Uint32ToBytes(yar.Header.BodyLen))
-
-	//copy(data[82:90], yar.Packager.Data[:8])
-
-	//copy(data[90:dataLen], jsonData)
-
-	return data, nil
-}
-
-func UnpackRequest(r io.Reader) (*Request, error) {
-	var yh Header
-	if berr := binary.Read(r, binary.BigEndian, &yh); berr != nil {
-		return nil, berr
-	}
-
-	buf := make([]byte, yh.BodyLen)
-
-	n, err := r.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	if n != int(yh.BodyLen) {
-		return nil, fmt.Errorf("Read request body length %d is not equal bodylen of header %d", n, yh.BodyLen)
-	}
-	var rs Request
-	if err = json.Unmarshal(buf, &rs); err != nil {
-		return nil, err
-	}
-	return &rs, nil
 }

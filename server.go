@@ -79,12 +79,10 @@ func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
 		return yerr
 	}
 
-	var pkg Packager
-	pkg.Read(c.r)
-	if pkg != "JSON" {
+	glog.Extraln("pkgname", yh.PkgName)
+	if !yh.PkgName.Equal("JSON") {
 		return errUnsupportedEncoding
 	}
-	glog.Extraln("pkg", pkg)
 
 	blen := yh.BodyLen - 8
 

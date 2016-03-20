@@ -75,12 +75,10 @@ func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader 
 		Reserved: 0,
 		BodyLen:  uint32(len(jbyte) + 8),
 	}
+	yh.PkgName.Set("JSON")
 
 	//binary.Write(buf, binary.LittleEndian, yh)
 	binary.Write(buf, binary.BigEndian, yh)
-
-	pkg := Packager("JSON")
-	pkg.Write(buf)
 
 	buf.Write(jbyte)
 
