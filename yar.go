@@ -104,13 +104,12 @@ func (r *Response) Write(w io.Writer) error {
 	return nil
 }
 
-
 // Packager yar packager name
 type Packager [8]byte
 
 // Equal check it is equal the string
 func (p *Packager) Equal(str string) bool {
-	for i:=0; i<8 && i<len(str); i++ {
+	for i := 0; i < 8 && i < len(str); i++ {
 		if (*p)[i] != str[i] {
 			return false
 		}
@@ -120,10 +119,10 @@ func (p *Packager) Equal(str string) bool {
 
 func (p *Packager) Set(str string) {
 	var i int
-	for i=0; i<8 && i<len(str); i++ {
+	for i = 0; i < 8 && i < len(str); i++ {
 		(*p)[i] = str[i]
 	}
-	for ; i<8; i++ {
+	for ; i < 8; i++ {
 		(*p)[i] = 0
 	}
 }

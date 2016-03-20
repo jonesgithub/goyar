@@ -27,10 +27,10 @@ type serverCodec struct {
 	//req   *http.Request
 	//rw      http.ResponseWriter
 
-	rwc io.ReadWriteCloser
-	c io.Closer
-	r io.Reader
-	w io.Writer
+	rwc     io.ReadWriteCloser
+	c       io.Closer
+	r       io.Reader
+	w       io.Writer
 	request *serverRequest
 }
 
