@@ -2,15 +2,12 @@ package goyar
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/neverlee/glog"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/rpc"
-	"sync"
 )
 
 const (
@@ -129,7 +126,6 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 	} else {
 		resp.Error = r.Error
 	}
-	bb, _ := json.Marshal(resp)
 
 	err := resp.Write(c.w)
 	if c.rwc != nil {

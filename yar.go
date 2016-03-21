@@ -1,7 +1,6 @@
 package goyar
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"

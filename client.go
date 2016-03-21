@@ -3,7 +3,6 @@
 package goyar
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/neverlee/glog"
