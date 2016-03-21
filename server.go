@@ -3,7 +3,6 @@ package goyar
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/neverlee/glog"
 	"io"
 	"log"
 	"net/http"
@@ -63,13 +62,10 @@ type serverRequest struct {
 
 func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
 	yh, yerr := ReadHeader(c.r)
-	glog.Extraln("ReadRequestHeader")
-	glog.Extraln(yh, yerr)
 	if yerr != nil {
 		return yerr
 	}
 
-	glog.Extraln("pkgname", yh.PkgName)
 	if !yh.PkgName.Equal("JSON") {
 		return errUnsupportedEncoding
 	}
@@ -77,18 +73,14 @@ func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
 	blen := yh.BodyLen - 8
 
 	buf := make([]byte, blen)
-	if rn, rerr := c.r.Read(buf); rn != int(blen) {
-		glog.Extraln("read", rn, rerr, string(buf))
+	if rn, _ := c.r.Read(buf); rn != int(blen) {
 		return fmt.Errorf("Read request body length %d is not equal bodylen of header %d", rn, yh.BodyLen)
 	}
-	glog.Extraln("readBody", string(buf))
 
 	var req serverRequest
 	if jerr := json.Unmarshal(buf, &req); jerr != nil {
-		glog.Extraln(jerr)
 		return jerr
 	}
-	glog.Extraln("serverRequest", req)
 
 	r.ServiceMethod = c.prefix + "." + req.Method
 	r.Seq = uint64(req.ID)
@@ -98,7 +90,6 @@ func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
 }
 
 func (c *serverCodec) ReadRequestBody(x interface{}) error {
-	glog.Extraln("----------ReadRequestBody")
 	if x == nil {
 		return nil
 	}
@@ -117,7 +108,6 @@ func (c *serverCodec) ReadRequestBody(x interface{}) error {
 //var null = json.RawMessage([]byte("null"))
 
 func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
-	glog.Extraln("----------WriteResponse")
 	var resp Response
 
 	resp.ID = uint32(r.Seq)
@@ -135,7 +125,6 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 }
 
 func (c *serverCodec) Close() error {
-	glog.Extraln("----------Close")
 	return c.c.Close()
 }
 

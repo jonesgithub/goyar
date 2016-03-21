@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"github.com/neverlee/glog"
 	"io"
 )
 
@@ -76,7 +74,6 @@ type Response struct {
 
 func (r *Response) Write(w io.Writer) error {
 	jbyte, jerr := json.Marshal(*r)
-	fmt.Println(jbyte, jerr)
 	if jerr != nil {
 		return nil
 	}
@@ -91,13 +88,10 @@ func (r *Response) Write(w io.Writer) error {
 	yh.PkgName.Set("JSON")
 
 	if err := binary.Write(w, binary.BigEndian, yh); err != nil {
-		glog.Extraln("binary h w", err)
 		return err
 	}
-	glog.Extraln("Write header end")
 
-	if n, err := w.Write(jbyte); err != nil {
-		glog.Extraln("Write last ", n, err)
+	if _, err := w.Write(jbyte); err != nil {
 		return err
 	}
 	return nil

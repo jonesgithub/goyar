@@ -5,7 +5,6 @@ package goyar
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/neverlee/glog"
 	"io"
 	"net"
 	"net/rpc"
@@ -71,8 +70,6 @@ func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
 	c.response.reset()
 
 	yh, yerr := ReadHeader(c.r)
-	glog.Extraln("ReadRequestHeader")
-	glog.Extraln(yh, yerr)
 	if yerr != nil {
 		return yerr
 	}
@@ -82,7 +79,6 @@ func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
 	delete(c.pending, yh.ID)
 	c.mutex.Unlock()
 
-	glog.Extraln("pkgname", yh.PkgName)
 	if !yh.PkgName.Equal("JSON") {
 		return errUnsupportedEncoding
 	}
@@ -90,19 +86,14 @@ func (c *clientCodec) ReadResponseHeader(r *rpc.Response) error {
 	blen := yh.BodyLen - 8
 
 	buf := make([]byte, blen)
-	if rn, rerr := c.r.Read(buf); rn != int(blen) {
-		glog.Extraln("read", rn, rerr, string(buf))
+	if rn, _ := c.r.Read(buf); rn != int(blen) {
 		return fmt.Errorf("Read request body length %d is not equal bodylen of header %d", rn, yh.BodyLen)
 	}
-	glog.Extraln("readBody", string(buf))
-	glog.Extraln("readBody", buf)
 
 	resp := &c.response
 	if jerr := json.Unmarshal(buf, resp); jerr != nil {
-		glog.Extraln(jerr)
 		return jerr
 	}
-	glog.Extraln("clientResponse", resp)
 
 	r.Error = ""
 	r.Seq = uint64(resp.ID)
