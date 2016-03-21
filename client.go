@@ -1,5 +1,7 @@
-// Package gorpc implements a YAR-RPC ClientCodec and ServerCodec
-// for the rpc package.
+// Copyright 2016 Never Lee. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package goyar
 
 import (
@@ -27,13 +29,14 @@ type clientCodec struct {
 	pending map[uint32]string // map request id to method name
 }
 
-// NewClientCodec returns a new rpc.ClientCodec using JSON-RPC on conn.
+// NewClientCodec returns a new rpc.ClientCodec using YAR-RPC on conn.
 func NewClientCodec(conn io.ReadWriteCloser) rpc.ClientCodec {
 	return &clientCodec{
-		rwc: conn,
-		r:   conn,
-		w:   conn,
-		c:   conn,
+		rwc:     conn,
+		r:       conn,
+		w:       conn,
+		c:       conn,
+		pending: make(map[uint32]string),
 	}
 }
 
@@ -51,7 +54,6 @@ func (c *clientCodec) WriteRequest(r *rpc.Request, param interface{}) error {
 	return req.Write(c.w)
 }
 
-// Response yar response struct(only for json)
 type clientResponse struct {
 	ID     uint32           `json:"i"` // yar rpc id
 	Status int32            `json:"s"` // return status code
@@ -122,7 +124,7 @@ func NewClient(conn io.ReadWriteCloser) *rpc.Client {
 	return rpc.NewClientWithCodec(NewClientCodec(conn))
 }
 
-// Dial connects to a JSON-RPC server at the specified network address.
+// Dial connects to a YAR-RPC server at the specified network address.
 func Dial(network, address string) (*rpc.Client, error) {
 	conn, err := net.Dial(network, address)
 	if err != nil {

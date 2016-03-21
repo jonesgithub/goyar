@@ -1,3 +1,69 @@
+// Copyright 2016 Never Lee. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+/*
+	Package goyar provides a jsoncodec for access the remote http yar rpc server.
+	Package gorpc implements a YAR-RPC ClientCodec and ServerCodec with json codec for the rpc package, and provide a http yar client
+
+	Here are some simple example.
+
+		// Yar http client
+		client := goyar.NewYHClient("http://yarserver/api.php", nil)
+		var r int
+		err := client.MCall("add", &r, 3, 4)
+		err := client.Call("Echo", 10, &r)
+
+		// Yar http server
+		type Arith int
+
+		func (t *Arith) Add(args *Args, reply *Reply) error {
+			reply.C = args.A + args.B
+			return nil
+		}
+
+		func (t *Arith) Echo(i *int, r *int) error {
+			*r = *i
+			return nil
+		}
+
+		func main() {
+			yar := goyar.NewYarServer()
+			arith := new(Arith)
+			yar.Register(arith)
+			yar.HandleHTTP("/api.php")
+
+			http.ListenAndServe(":8000", nil)
+		}
+
+		// Yar tcp client
+		client, err := goyar.Dial("tcp", "127.0.0.1:1234")
+		if err != nil {
+			log.Fatal("dialing:", err)
+		}
+		err := client.Call("Echo", 15, &r)
+
+		// Yar tcp server
+		arith := new(Arith)
+		yar := goyar.NewYarServer()
+		yar.Register(arith)
+
+		tcpAddr, err := net.ResolveTCPAddr("tcp", ":1234")
+		checkError(err)
+
+		listener, err := net.ListenTCP("tcp", tcpAddr)
+		checkError(err)
+
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				continue
+			}
+			yar.ServeConn(conn)
+		}
+
+*/
+
 package goyar
 
 import (
@@ -29,6 +95,7 @@ type Request struct {
 	Params []interface{} `json:"p"` // all the params
 }
 
+// ReadHeader get a yar header
 func ReadHeader(r io.Reader) (*Header, error) {
 	var yh Header
 	if err := binary.Read(r, binary.BigEndian, &yh); err != nil {
@@ -37,6 +104,7 @@ func ReadHeader(r io.Reader) (*Header, error) {
 	return &yh, nil
 }
 
+// Write write the header and request
 func (r *Request) Write(w io.Writer) error {
 	jbyte, jerr := json.Marshal(*r)
 	if jerr != nil {
@@ -72,6 +140,7 @@ type Response struct {
 	Error  string      `json:"e"` // return error message
 }
 
+// Write write the header and response
 func (r *Response) Write(w io.Writer) error {
 	jbyte, jerr := json.Marshal(*r)
 	if jerr != nil {

@@ -1,3 +1,7 @@
+// Copyright 2016 Never Lee. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package goyar
 
 import (
@@ -10,7 +14,7 @@ import (
 )
 
 const (
-	YARPREFIX = "yar"
+	yarprefix = "yar"
 )
 
 type serverCodec struct {
@@ -23,12 +27,12 @@ type serverCodec struct {
 	request *serverRequest
 }
 
-// NewServerCodec returns a new rpc.ServerCodec using JSON-RPC on conn.
+// NewServerCodec returns a new rpc.ServerCodec using YAR-RPC on tcp conn.
 func NewServerCodec(conn io.ReadWriteCloser) rpc.ServerCodec {
-	return NewNameServerCodec(YARPREFIX, conn)
+	return NewNameServerCodec(yarprefix, conn)
 }
 
-// NewNameServerCodec returns a new rpc.ServerCodec using JSON-RPC on conn.
+// NewNameServerCodec returns a new rpc.ServerCodec using YAR-RPC on tcp conn.
 func NewNameServerCodec(name string, conn io.ReadWriteCloser) rpc.ServerCodec {
 	return &serverCodec{
 		prefix: name,
@@ -38,12 +42,12 @@ func NewNameServerCodec(name string, conn io.ReadWriteCloser) rpc.ServerCodec {
 	}
 }
 
-// NewHTTPServerCodec returns a new rpc.ServerCodec using JSON-RPC on conn.
+// NewHTTPServerCodec returns a new rpc.ServerCodec using YAR-RPC on http conn.
 func NewHTTPServerCodec(conn io.ReadWriteCloser, w http.ResponseWriter, req *http.Request) rpc.ServerCodec {
-	return NewHTTPNameServerCodec(YARPREFIX, conn, w, req)
+	return NewHTTPNameServerCodec(yarprefix, conn, w, req)
 }
 
-// NewHTTPNameServerCodec returns a new rpc.ServerCodec using JSON-RPC on conn.
+// NewHTTPNameServerCodec returns a new rpc.ServerCodec using YAR-RPC on http conn.
 func NewHTTPNameServerCodec(name string, conn io.ReadWriteCloser, w http.ResponseWriter, req *http.Request) rpc.ServerCodec {
 	return &serverCodec{
 		prefix: name,
@@ -105,8 +109,6 @@ func (c *serverCodec) ReadRequestBody(x interface{}) error {
 	return json.Unmarshal(*c.request.Params, &params)
 }
 
-//var null = json.RawMessage([]byte("null"))
-
 func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 	var resp Response
 
@@ -128,27 +130,37 @@ func (c *serverCodec) Close() error {
 	return c.c.Close()
 }
 
+// YarServer yar rpc server
 type YarServer struct {
 	*rpc.Server
 }
 
-func (y *YarServer) Register(rcvr interface{}) {
-	y.Server.RegisterName(YARPREFIX, rcvr)
-}
-
+// NewYarServer return a yar rpc server
 func NewYarServer() *YarServer {
 	return &YarServer{rpc.NewServer()}
 }
 
-func (s *YarServer) ServeConn(conn io.ReadWriteCloser) {
-	s.Server.ServeCodec(NewServerCodec(conn))
+// Register publishes in the server the set of methods of the
+// receiver value. Default register name is 'yar'
+func (y *YarServer) Register(rcvr interface{}) {
+	y.Server.RegisterName(yarprefix, rcvr)
 }
 
-func (s *YarServer) HandleHTTP(rpcPath string) {
-	http.Handle(rpcPath, s)
+// ServeConn runs the YAR-RPC server on a single connection.
+// ServeConn blocks, serving the connection until the client hangs up.
+// The caller typically invokes ServeConn in a go statement.
+func (y *YarServer) ServeConn(conn io.ReadWriteCloser) {
+	y.Server.ServeCodec(NewServerCodec(conn))
 }
 
-func (s *YarServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+// HandleHTTP registers an HTTP handler for YAR RPC messages on rpcPath,
+// It is still necessary to invoke http.Serve(), typically in a go statement.
+func (y *YarServer) HandleHTTP(rpcPath string) {
+	http.Handle(rpcPath, y)
+}
+
+// ServeHTTP yar http serve handle
+func (y *YarServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
@@ -157,5 +169,5 @@ func (s *YarServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	io.WriteString(conn, "HTTP/1.0 200 OK\n\n")
 
 	codec := NewHTTPServerCodec(conn, w, req)
-	s.Server.ServeCodec(codec)
+	y.Server.ServeCodec(codec)
 }

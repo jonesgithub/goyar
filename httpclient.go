@@ -2,22 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//	Package goyar provides a client with jsoncodec for calling the remote http yar rpc server.
-//
-//	Here is a simple example.
-//
-//		import (
-//			"fmt"
-//			"github.com/neverlee/goyar"
-//		)
-//
-//		func main() {
-//			client := goyar.NewHTTPClient("http://yarserver/yarphp.php", nil)
-//			var r int
-//			err := client.MCall("add", &r, 3, 4)
-//			fmt.Println(r)
-//		}
-
 package goyar
 
 import (
@@ -31,17 +15,17 @@ import (
 	"sync"
 )
 
-// Client for yar rpc
-type Client struct {
+// YHClient yar http client
+type YHClient struct {
 	http  *http.Client // a http client
-	seq   uint32       // the rpc call id
 	url   string       // remote url
+	seq   uint32       // the rpc calling id
 	mutex sync.Mutex
 }
 
-// NewHTTPClient returns a new goyar.Client
-func NewHTTPClient(url string, client *http.Client) *Client {
-	var c Client
+// NewYHClient returns a new yar http client
+func NewYHClient(url string, client *http.Client) *YHClient {
+	var c YHClient
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -50,8 +34,7 @@ func NewHTTPClient(url string, client *http.Client) *Client {
 	return &c
 }
 
-// Pack a complete yar request body
-func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader {
+func (c *YHClient) pack(id uint32, method string, params []interface{}) io.Reader {
 	dobj := Request{
 		ID:     id,
 		Method: method,
@@ -79,15 +62,15 @@ func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader 
 	return buf
 }
 
-func (c *Client) raise() uint32 {
+func (c *YHClient) raise() uint32 {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.seq++
 	return c.seq
 }
 
-func (c *Client) mcall(method string, params []interface{}) ([]byte, error) {
-	dpack := c.Pack(c.raise(), method, params)
+func (c *YHClient) mcall(method string, params []interface{}) ([]byte, error) {
+	dpack := c.pack(c.raise(), method, params)
 
 	request, _ := http.NewRequest("POST", c.url, dpack)
 	request.Header.Set("Connection", "close")
@@ -107,13 +90,13 @@ func (c *Client) mcall(method string, params []interface{}) ([]byte, error) {
 	return nil, berr
 }
 
-// MCallRaw calling the remote yarrpc and return the raw byte yar response body
-func (c *Client) MCallRaw(method string, params ...interface{}) ([]byte, error) {
+// MCallRaw calling the remote yarrpc and return the raw byte yar response
+func (c *YHClient) MCallRaw(method string, params ...interface{}) ([]byte, error) {
 	return c.mcall(method, params)
 }
 
 // MCall calling the remote yarrpc, print the output and set return value
-func (c *Client) MCall(method string, ret interface{}, params ...interface{}) error {
+func (c *YHClient) MCall(method string, ret interface{}, params ...interface{}) error {
 	data, cerr := c.mcall(method, params)
 	if cerr == nil {
 		jdata := data[90:]
@@ -133,7 +116,7 @@ func (c *Client) MCall(method string, ret interface{}, params ...interface{}) er
 }
 
 // Call calling the remote yarrpc, only support one param. print the output and set return value
-func (c *Client) Call(method string, param interface{}, ret interface{}) error {
+func (c *YHClient) Call(method string, param interface{}, ret interface{}) error {
 	data, cerr := c.mcall(method, []interface{}{param})
 	if cerr == nil {
 		jdata := data[90:]
