@@ -2,24 +2,21 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-/*
-	Package goyar provides a client with jsoncodec for calling the remote http yar rpc server.
-
-	Here is a simple example.
-
-		import (
-			"fmt"
-			"github.com/neverlee/goyar"
-		)
-
-		func main() {
-			client := goyar.NewClient("http://yarserver/yarphp.php", nil)
-			var r int
-			err := client.MCall("add", &r, 3, 4)
-			fmt.Println(r)
-		}
-
-*/
+//	Package goyar provides a client with jsoncodec for calling the remote http yar rpc server.
+//
+//	Here is a simple example.
+//
+//		import (
+//			"fmt"
+//			"github.com/neverlee/goyar"
+//		)
+//
+//		func main() {
+//			client := goyar.NewHTTPClient("http://yarserver/yarphp.php", nil)
+//			var r int
+//			err := client.MCall("add", &r, 3, 4)
+//			fmt.Println(r)
+//		}
 
 package goyar
 
@@ -28,7 +25,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/neverlee/glog"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -77,9 +73,7 @@ func (c *Client) Pack(id uint32, method string, params []interface{}) io.Reader 
 	}
 	yh.PkgName.Set("JSON")
 
-	//binary.Write(buf, binary.LittleEndian, yh)
 	binary.Write(buf, binary.BigEndian, yh)
-
 	buf.Write(jbyte)
 
 	return buf
@@ -104,7 +98,6 @@ func (c *Client) mcall(method string, params []interface{}) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	body, berr := ioutil.ReadAll(resp.Body)
-	glog.Extraln(body, berr)
 	if berr == nil {
 		if len(body) > 90 {
 			return body, nil
@@ -139,7 +132,7 @@ func (c *Client) MCall(method string, ret interface{}, params ...interface{}) er
 	return cerr
 }
 
-// Call calling the remote yarrpc, print the output and set return value
+// Call calling the remote yarrpc, only support one param. print the output and set return value
 func (c *Client) Call(method string, param interface{}, ret interface{}) error {
 	data, cerr := c.mcall(method, []interface{}{param})
 	if cerr == nil {

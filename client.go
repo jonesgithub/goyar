@@ -58,7 +58,7 @@ type clientResponse struct {
 	ID     uint32           `json:"i"` // yar rpc id
 	Status int32            `json:"s"` // return status code
 	Result *json.RawMessage `json:"r"` // return value raw data
-	Output string           `json:"o"` // the called function standard output
+	Output string           `json:"o"` // server standard output
 	Error  string           `json:"e"` // return error message
 }
 

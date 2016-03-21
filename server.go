@@ -20,9 +20,6 @@ const (
 type serverCodec struct {
 	prefix string
 
-	//req   *http.Request
-	//rw      http.ResponseWriter
-
 	rwc     io.ReadWriteCloser
 	c       io.Closer
 	r       io.Reader
@@ -134,11 +131,11 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 	}
 	bb, _ := json.Marshal(resp)
 
-	resp.Write(c.w)
+	err := resp.Write(c.w)
 	if c.rwc != nil {
 		c.rwc.Close()
 	}
-	return nil
+	return err
 }
 
 func (c *serverCodec) Close() error {
@@ -146,27 +143,27 @@ func (c *serverCodec) Close() error {
 	return c.c.Close()
 }
 
-type YarRpcServer struct {
+type YarServer struct {
 	*rpc.Server
 }
 
-func (y *YarRpcServer) Register(rcvr interface{}) {
+func (y *YarServer) Register(rcvr interface{}) {
 	y.Server.RegisterName(YARPREFIX, rcvr)
 }
 
-func NewYarRpcServer() *YarRpcServer {
-	return &YarRpcServer{rpc.NewServer()}
+func NewYarServer() *YarServer {
+	return &YarServer{rpc.NewServer()}
 }
 
-func (s *YarRpcServer) ServeConn(conn io.ReadWriteCloser) {
+func (s *YarServer) ServeConn(conn io.ReadWriteCloser) {
 	s.Server.ServeCodec(NewServerCodec(conn))
 }
 
-func (s *YarRpcServer) HandleHTTP(rpcPath string) {
+func (s *YarServer) HandleHTTP(rpcPath string) {
 	http.Handle(rpcPath, s)
 }
 
-func (s *YarRpcServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (s *YarServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())

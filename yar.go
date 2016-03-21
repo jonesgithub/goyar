@@ -13,7 +13,7 @@ import (
 var errMissingParams = errors.New("yarrpc: request body missing params")
 var errUnsupportedEncoding = errors.New("yarrpc: request body with unsupportedEncoding")
 
-// Header Yar transport Header(82 bytes)
+// Header Yar transport Header(90 bytes)
 type Header struct {
 	ID       uint32 // transaction id
 	Version  uint16 // protocl version
@@ -107,7 +107,7 @@ func (r *Response) Write(w io.Writer) error {
 // Packager yar packager name
 type Packager [8]byte
 
-// Equal check it is equal the string
+// Equal checking it is equal the string
 func (p *Packager) Equal(str string) bool {
 	for i := 0; i < 8 && i < len(str); i++ {
 		if (*p)[i] != str[i] {
@@ -117,6 +117,7 @@ func (p *Packager) Equal(str string) bool {
 	return true
 }
 
+// Set set a string as pkgname
 func (p *Packager) Set(str string) {
 	var i int
 	for i = 0; i < 8 && i < len(str); i++ {
