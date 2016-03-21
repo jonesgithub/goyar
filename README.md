@@ -22,11 +22,23 @@ func main() {
 	yar := goyar.NewYarServer()
 	ar := new(Arith)
 	yar.Register(ar)
-	yar.HandleHTTP("/api")
+	yar.HandleHTTP("/api.php")
 
 	http.ListenAndServe(":8000", nil)
 }
 ```
+Same as php code
+```php
+<?php
+class Operator {
+    public function Echo($a) {
+        return $a;
+    }
+}
+$server = new Yar_Server(new Operator());
+$server->handle();
+```
+
 
 ## Yar http client Example
 ```go
@@ -38,9 +50,19 @@ import (
 func main() {
     client := goyar.NewYHClient("http://yarserver/api.php", nil)
     var r int
-    err := client.MCall("add", &r, 3, 4)
-    err := client.MCall("Echo", 100, &r)
+    var err error
+    err = client.MCall("add", &r, 3, 4)
+    err = client.Call("Echo", 100, &r)
 }
+```
+Same as php code
+```php
+<?php
+$client = new yar_client("http://yarserver/api.php");
+$client->SetOpt(YAR_OPT_PACKAGER, "json"); #this is necessary.
+$client->add(3, 4);
+$client->Echo(1100);
+?>
 ```
 
 ## Yar tcp server Example
