@@ -31,7 +31,8 @@ func (t *Arith) Set(i *int, r *int) error {
 	return nil
 }
 
-func ExampleYarHTTPCLient() {
+func ExampleNewYHClient() {
+	// YarHTTPClient
 	client := goyar.NewYHClient("http://yarserver/api.php", nil)
 	var r int
 	if err := client.MCall("multi", &r, 3, 4); err == nil {
@@ -43,7 +44,8 @@ func ExampleYarHTTPCLient() {
 	}
 }
 
-func ExampleYarHTTPServer() {
+func ExampleNewYarServer_1() {
+	// YarHTTPServer
 	yar := goyar.NewYarServer()
 	arith := new(Arith)
 	yar.Register(arith)
@@ -52,7 +54,8 @@ func ExampleYarHTTPServer() {
 	http.ListenAndServe(":8000", nil)
 }
 
-func ExampleYarTCPClient() {
+func ExampleDial() {
+	// YarTCPClient
 	client, err := goyar.Dial("tcp", "127.0.0.1:1234")
 	if err != nil {
 		log.Fatal("dialing:", err)
@@ -60,7 +63,8 @@ func ExampleYarTCPClient() {
 	err := client.Call("Set", 15, &r)
 }
 
-func ExampleYarTCPServer() {
+func ExampleNewYarServer_2() {
+	// YarTCPServer
 	arith := new(Arith)
 	yar := goyar.NewYarServer()
 	yar.Register(arith)
