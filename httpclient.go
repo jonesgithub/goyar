@@ -73,7 +73,7 @@ func (c *YHClient) mcall(method string, params []interface{}) ([]byte, error) {
 	dpack := c.pack(c.raise(), method, params)
 
 	request, _ := http.NewRequest("POST", c.url, dpack)
-	request.Header.Set("Connection", "close")
+	//request.Header.Set("Connection", "close")
 	request.Header.Set("Content-Type", "application/octet-stream")
 	resp, rerr := c.http.Do(request)
 	if rerr != nil {
